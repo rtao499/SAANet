@@ -7,7 +7,7 @@ import os
 from utils import utils
 from utils.visualization import disp_error_img, save_images
 from metric import d1_metric, thres_metric
-
+from spikingjelly.clock_driven import neuron, functional, surrogate, layer
 
 class Model(object):
     def __init__(self, args, logger, optimizer, aanet, device, start_iter=0, start_epoch=0,
@@ -52,9 +52,9 @@ class Model(object):
         last_print_time = time.time()
 
         for i, sample in enumerate(train_loader):
-            left = sample['left'].to(device)  # [B, 3, H, W]
-            right = sample['right'].to(device)
-            gt_disp = sample['disp'].to(device)  # [B, H, W]
+            left = sample['left'].type(torch.cuda.FloatTensor).to(device)  # [B, 3, H, W]
+            right = sample['right'].type(torch.cuda.FloatTensor).to(device)
+            gt_disp = sample['disp'].type(torch.cuda.FloatTensor).to(device)  # [B, H, W]
 
             mask = (gt_disp > 0) & (gt_disp < args.max_disp)
 
@@ -116,6 +116,7 @@ class Model(object):
             self.optimizer.zero_grad()
             total_loss.backward()
             self.optimizer.step()
+            functional.reset_net(self.aanet)
 
             self.num_iter += 1
 

@@ -6,15 +6,13 @@ from nets.feature import BasicBlock, BasicConv, Conv2x
 from nets.deform import DeformConv2d
 from nets.warp import disp_warp
 
-from spikingjelly.clock_driven import neuron, functional, surrogate, layer
-
 
 def conv2d(in_channels, out_channels, kernel_size=3, stride=1, dilation=1, groups=1):
     return nn.Sequential(nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
                                    stride=stride, padding=dilation, dilation=dilation,
                                    bias=False, groups=groups),
                          nn.BatchNorm2d(out_channels),
-                         neuron.IFNode(surrogate_function=surrogate.ATan()))
+                         nn.LeakyReLU(0.2, inplace=True))
 
 
 class StereoNetRefinement(nn.Module):
@@ -115,7 +113,7 @@ class HourglassRefinement(nn.Module):
         super(HourglassRefinement, self).__init__()
 
         # Left and warped error
-        in_channels = 4
+        in_channels = 6
         self.conv1 = conv2d(in_channels, 16)
         self.conv2 = conv2d(1, 16)  # on low disparity
 

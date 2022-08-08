@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="dd3199e6-cdbd-4d55-9eac-8707ef4bd955" name="tr@localhost:251 key">
+        <fileTransfer accessType="SFTP" host="localhost" port="251" sshConfigId="b5f74847-f56d-43a2-a5cc-8a324118c603" sshConfig="tr@localhost:251 key" keyPair="true" />
+      </webServer>
+    </option>
+  </component>
+</project>

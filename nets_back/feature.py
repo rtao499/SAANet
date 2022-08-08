@@ -3,24 +3,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from nets.deform import DeformConv2d
-from spikingjelly.clock_driven import neuron, functional, surrogate, layer
-
 
 
 def conv1x1(in_channels, out_channels):
     return nn.Sequential(nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
                          nn.BatchNorm2d(out_channels),
-                         neuron.IFNode(surrogate_function=surrogate.ATan())) # nn.ReLU(inplace=True)
+                         nn.ReLU(inplace=True))
 
 
 # Used for StereoNet feature extractor
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1, with_bn_relu=False): #leaky_relu=False
+def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1, with_bn_relu=False, leaky_relu=False):
     """3x3 convolution with padding"""
     conv = nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                      padding=dilation, groups=groups, bias=False, dilation=dilation)
     if with_bn_relu:
-        # relu = nn.LeakyReLU(0.2, inplace=True) if leaky_relu else nn.ReLU(inplace=True)
-        relu = neuron.IFNode(surrogate_function=surrogate.ATan())
+        relu = nn.LeakyReLU(0.2, inplace=True) if leaky_relu else nn.ReLU(inplace=True)
         conv = nn.Sequential(conv,
                              nn.BatchNorm2d(out_planes),
                              relu)
@@ -32,8 +29,7 @@ def conv5x5(in_channels, out_channels, stride=2,
     bias = False if use_bn else True
     conv = nn.Conv2d(in_channels, out_channels, kernel_size=5, stride=stride,
                      padding=2, dilation=dilation, bias=bias)
-    # relu = nn.ReLU(inplace=True)
-    relu = neuron.IFNode(surrogate_function=surrogate.ATan())
+    relu = nn.ReLU(inplace=True)
     if use_bn:
         out = nn.Sequential(conv,
                             nn.BatchNorm2d(out_channels),
@@ -47,7 +43,7 @@ class BasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
+                 base_width=64, dilation=1, norm_layer=None, leaky_relu=True):
         """StereoNet uses leaky relu (alpha = 0.2)"""
         super(BasicBlock, self).__init__()
         if norm_layer is None:
@@ -55,9 +51,8 @@ class BasicBlock(nn.Module):
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv3x3(inplanes, planes, stride=stride, dilation=dilation)
         self.bn1 = norm_layer(planes)
-        # self.relu = nn.LeakyReLU(0.2, inplace=True) if leaky_relu else nn.ReLU(inplace=True)
-        self.relu = neuron.IFNode(surrogate_function=surrogate.ATan())
-        self.conv2 = conv3x3(planes, planes, dilation=dilation, with_bn_relu=True)
+        self.relu = nn.LeakyReLU(0.2, inplace=True) if leaky_relu else nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(planes, planes, dilation=dilation)
         self.bn2 = norm_layer(planes)
         self.downsample = downsample
         self.stride = stride
@@ -93,7 +88,7 @@ class StereoNetFeature(nn.Module):
 
         downsample = nn.ModuleList()
 
-        in_channels = 2
+        in_channels = 3
         out_channels = 32
         for _ in range(num_downsample):
             downsample.append(conv5x5(in_channels, out_channels))
@@ -132,7 +127,7 @@ class PSMNetBasicBlock(nn.Module):
         super(PSMNetBasicBlock, self).__init__()
 
         self.conv1 = nn.Sequential(convbn(inplanes, planes, 3, stride, pad, dilation),
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                   nn.ReLU(inplace=True))
 
         self.conv2 = convbn(planes, planes, 3, 1, pad, dilation)
 
@@ -158,21 +153,21 @@ class FeaturePyrmaid(nn.Module):
         self.out1 = nn.Sequential(nn.Conv2d(in_channel, in_channel * 2, kernel_size=3,
                                             stride=2, padding=1, bias=False),
                                   nn.BatchNorm2d(in_channel * 2),
-                                  neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                  nn.LeakyReLU(0.2, inplace=True),
                                   nn.Conv2d(in_channel * 2, in_channel * 2, kernel_size=1,
                                             stride=1, padding=0, bias=False),
                                   nn.BatchNorm2d(in_channel * 2),
-                                  neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                  nn.LeakyReLU(0.2, inplace=True),
                                   )
 
         self.out2 = nn.Sequential(nn.Conv2d(in_channel * 2, in_channel * 4, kernel_size=3,
                                             stride=2, padding=1, bias=False),
                                   nn.BatchNorm2d(in_channel * 4),
-                                  neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                  nn.LeakyReLU(0.2, inplace=True),
                                   nn.Conv2d(in_channel * 4, in_channel * 4, kernel_size=1,
                                             stride=1, padding=0, bias=False),
                                   nn.BatchNorm2d(in_channel * 4),
-                                  neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                  nn.LeakyReLU(0.2, inplace=True),
                                   )
 
     def forward(self, x):
@@ -201,7 +196,7 @@ class FeaturePyramidNetwork(nn.Module):
             fpn_conv = nn.Sequential(
                 nn.Conv2d(out_channels, out_channels, 3, padding=1),
                 nn.BatchNorm2d(out_channels),
-                neuron.IFNode(surrogate_function=surrogate.ATan()))
+                nn.ReLU(inplace=True))
 
             self.lateral_convs.append(lateral_conv)
             self.fpn_convs.append(fpn_conv)
@@ -241,11 +236,11 @@ class PSMNetFeature(nn.Module):
         self.inplanes = 32
 
         self.firstconv = nn.Sequential(convbn(3, 32, 3, 2, 1, 1),
-                                       neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                       nn.ReLU(inplace=True),
                                        convbn(32, 32, 3, 1, 1, 1),
                                        nn.ReLU(inplace=True),
                                        convbn(32, 32, 3, 1, 1, 1),
-                                       neuron.IFNode(surrogate_function=surrogate.ATan()))  # H/2
+                                       nn.ReLU(inplace=True))  # H/2
 
         self.layer1 = self._make_layer(PSMNetBasicBlock, 32, 3, 1, 1, 1)
         self.layer2 = self._make_layer(PSMNetBasicBlock, 64, 16, 2, 1, 1)  # H/4
@@ -254,22 +249,22 @@ class PSMNetFeature(nn.Module):
 
         self.branch1 = nn.Sequential(nn.AvgPool2d((64, 64), stride=(64, 64)),
                                      convbn(128, 32, 1, 1, 0, 1),
-                                     neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                     nn.ReLU(inplace=True))
 
         self.branch2 = nn.Sequential(nn.AvgPool2d((32, 32), stride=(32, 32)),
                                      convbn(128, 32, 1, 1, 0, 1),
-                                     neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                     nn.ReLU(inplace=True))
 
         self.branch3 = nn.Sequential(nn.AvgPool2d((16, 16), stride=(16, 16)),
                                      convbn(128, 32, 1, 1, 0, 1),
-                                     neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                     nn.ReLU(inplace=True))
 
         self.branch4 = nn.Sequential(nn.AvgPool2d((8, 8), stride=(8, 8)),
                                      convbn(128, 32, 1, 1, 0, 1),
-                                     neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                     nn.ReLU(inplace=True))
 
         self.lastconv = nn.Sequential(convbn(320, 128, 3, 1, 1, 1),
-                                      neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                      nn.ReLU(inplace=True),
                                       nn.Conv2d(128, 32, kernel_size=1, padding=0, stride=1, bias=False))
 
     def _make_layer(self, block, planes, blocks, stride, pad, dilation):
@@ -339,8 +334,7 @@ class BasicConv(nn.Module):
         if self.use_bn:
             x = self.bn(x)
         if self.relu:
-            lif = neuron.IFNode(surrogate_function=surrogate.ATan())
-            x = lif(x)
+            x = F.relu(x, inplace=True)
         return x
 
 
@@ -389,12 +383,12 @@ class GANetFeature(nn.Module):
 
         if feature_mdconv:
             self.conv_start = nn.Sequential(
-                BasicConv(2, 32, kernel_size=3, padding=1),
+                BasicConv(3, 32, kernel_size=3, padding=1),
                 BasicConv(32, 32, kernel_size=5, stride=3, padding=2),
                 DeformConv2d(32, 32))
         else:
             self.conv_start = nn.Sequential(
-                BasicConv(2, 32, kernel_size=3, padding=1),
+                BasicConv(3, 32, kernel_size=3, padding=1),
                 BasicConv(32, 32, kernel_size=5, stride=3, padding=2),
                 BasicConv(32, 32, kernel_size=3, padding=1))
 
@@ -470,7 +464,7 @@ class GCNetFeature(nn.Module):
         super(GCNetFeature, self).__init__()
 
         self.inplanes = 32
-        self.conv1 = conv5x5(2, 32)
+        self.conv1 = conv5x5(3, 32)
         self.conv2 = self._make_layer(PSMNetBasicBlock, 32, 8, 1, 1, 1)
         self.conv3 = conv3x3(32, 32)
 

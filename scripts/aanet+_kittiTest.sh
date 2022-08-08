@@ -63,17 +63,11 @@
 #--no_validate
 
 # Train on KITTI 2015 training set
-CUDA_VISIBLE_DEVICES=2 python train.py \
---data_dir data/KITTI/kitti_2015/data_scene_flow \
---dataset_name KITTI2015 \
+CUDA_VISIBLE_DEVICES=0 python train.py \
 --mode train_all \
---checkpoint_dir checkpoints/aanet+_kitti15 \
+--checkpoint_dir checkpoints/saanet+_testMV \
 --batch_size 2 \
 --val_batch_size 5 \
---img_height 384 \
---img_width 1248 \
---val_img_height 384 \
---val_img_width 1248 \
 --feature_type ganet \
 --feature_pyramid \
 --refinement_type hourglass \

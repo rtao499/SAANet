@@ -119,7 +119,7 @@ and then access [http://localhost:6006](http://localhost:6006) in your browser.
 
 - **How to train on my own data?**
 
-  You can first generate a filename list by creating a data reading function in [filenames/generate_filenames.py](filenames/generate_filenames.py) (an example on KITTI dataset is provided), and then create a new dataset dictionary in [dataloader/dataloader.py](dataloader/dataloader.py).
+  You can first generate a filename list by creating a data reading function in [filenames/generate_filenames.py](filenames/generate_filenames.py) (an example on KITTI dataset is provided), and then create a new dataset dictionary in [dataloader/dataloader.py](dataloader_back/dataloader.py).
 
 - **How to develop new components?**
 

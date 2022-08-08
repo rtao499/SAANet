@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from nets.deform import SimpleBottleneck, DeformSimpleBottleneck
-from spikingjelly.clock_driven import neuron, functional, surrogate, layer
 
 
 def conv3d(in_channels, out_channels, kernel_size=3, stride=1, dilation=1, groups=1):
@@ -105,28 +104,28 @@ class PSMNetBasicAggregation(nn.Module):
         final_conv = nn.Conv3d(32, 1, kernel_size=3, padding=1, stride=1, bias=False)
 
         self.dres0 = nn.Sequential(conv0,
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                   nn.ReLU(inplace=True),
                                    conv1,
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                   nn.ReLU(inplace=True))
 
         self.dres1 = nn.Sequential(conv1,
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                   nn.ReLU(inplace=True),
                                    conv1)
 
         self.dres2 = nn.Sequential(conv1,
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                   nn.ReLU(inplace=True),
                                    conv1)
 
         self.dres3 = nn.Sequential(conv1,
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                   nn.ReLU(inplace=True),
                                    conv1)
 
         self.dres4 = nn.Sequential(conv1,
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                   nn.ReLU(inplace=True),
                                    conv1)
 
         self.classify = nn.Sequential(conv1,
-                                      neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                      nn.ReLU(inplace=True),
                                       final_conv)
 
     def forward(self, cost):
@@ -150,15 +149,15 @@ class PSMNetHourglass(nn.Module):
         super(PSMNetHourglass, self).__init__()
 
         self.conv1 = nn.Sequential(convbn_3d(inplanes, inplanes * 2, kernel_size=3, stride=2, pad=1),
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                   nn.ReLU(inplace=True))
 
         self.conv2 = convbn_3d(inplanes * 2, inplanes * 2, kernel_size=3, stride=1, pad=1)
 
         self.conv3 = nn.Sequential(convbn_3d(inplanes * 2, inplanes * 2, kernel_size=3, stride=2, pad=1),
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                   nn.ReLU(inplace=True))
 
         self.conv4 = nn.Sequential(convbn_3d(inplanes * 2, inplanes * 2, kernel_size=3, stride=1, pad=1),
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()))
+                                   nn.ReLU(inplace=True))
 
         self.conv5 = nn.Sequential(
             nn.ConvTranspose3d(inplanes * 2, inplanes * 2, kernel_size=3, padding=1, output_padding=1, stride=2,
@@ -174,19 +173,18 @@ class PSMNetHourglass(nn.Module):
 
         out = self.conv1(x)  # in:1/4 out:1/8
         pre = self.conv2(out)  # in:1/8 out:1/8
-        lif = neuron.IFNode(surrogate_function=surrogate.ATan())
         if postsqu is not None:
-            pre = lif(pre + postsqu)
+            pre = F.relu(pre + postsqu, inplace=True)
         else:
-            pre = lif(pre, inplace=True)
+            pre = F.relu(pre, inplace=True)
 
         out = self.conv3(pre)  # in:1/8 out:1/16
         out = self.conv4(out)  # in:1/16 out:1/16
 
         if presqu is not None:
-            post = lif(self.conv5(out) + presqu)  # in:1/16 out:1/8
+            post = F.relu(self.conv5(out) + presqu, inplace=True)  # in:1/16 out:1/8
         else:
-            post = lif(self.conv5(out) + pre)
+            post = F.relu(self.conv5(out) + pre, inplace=True)
 
         out = self.conv6(post)  # in:1/8 out:1/4
 
@@ -201,12 +199,12 @@ class PSMNetHGAggregation(nn.Module):
         self.max_disp = max_disp
 
         self.dres0 = nn.Sequential(convbn_3d(64, 32, 3, 1, 1),
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                   nn.ReLU(inplace=True),
                                    convbn_3d(32, 32, 3, 1, 1),
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()))  # [B, 32, D/4, H/4, W/4]
+                                   nn.ReLU(inplace=True))  # [B, 32, D/4, H/4, W/4]
 
         self.dres1 = nn.Sequential(convbn_3d(32, 32, 3, 1, 1),
-                                   neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                   nn.ReLU(inplace=True),
                                    convbn_3d(32, 32, 3, 1, 1))  # [B, 32, D/4, H/4, W/4]
 
         self.dres2 = PSMNetHourglass(32)
@@ -216,15 +214,15 @@ class PSMNetHGAggregation(nn.Module):
         self.dres4 = PSMNetHourglass(32)
 
         self.classif1 = nn.Sequential(convbn_3d(32, 32, 3, 1, 1),
-                                      neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                      nn.ReLU(inplace=True),
                                       nn.Conv3d(32, 1, kernel_size=3, padding=1, stride=1, bias=False))
 
         self.classif2 = nn.Sequential(convbn_3d(32, 32, 3, 1, 1),
-                                      neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                      nn.ReLU(inplace=True),
                                       nn.Conv3d(32, 1, kernel_size=3, padding=1, stride=1, bias=False))
 
         self.classif3 = nn.Sequential(convbn_3d(32, 32, 3, 1, 1),
-                                      neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                      nn.ReLU(inplace=True),
                                       nn.Conv3d(32, 1, kernel_size=3, padding=1, stride=1, bias=False))
 
     def forward(self, cost):
@@ -364,7 +362,7 @@ class AdaptiveAggregationModule(nn.Module):
                         layers.append(nn.Sequential(nn.Conv2d(max_disp // (2 ** j), max_disp // (2 ** j),
                                                               kernel_size=3, stride=2, padding=1, bias=False),
                                                     nn.BatchNorm2d(max_disp // (2 ** j)),
-                                                    neuron.IFNode(surrogate_function=surrogate.ATan()),
+                                                    nn.LeakyReLU(0.2, inplace=True),
                                                     ))
 
                     layers.append(nn.Sequential(nn.Conv2d(max_disp // (2 ** j), max_disp // (2 ** i),
